@@ -86,7 +86,7 @@ import java.util.List;
 
 @Component
 public class FileWatcherService {
-    private static final Path FILE_NAME = Paths.get("C:/Users/z004fy4n/Desktop/PP/BS/logs/logs/data.txt");
+    private static final Path FILE_NAME = Paths.get("");
     private final static String READ_MODE = "r";
     public static final String DESTINATION = "/topic/log";
     private long offset;
