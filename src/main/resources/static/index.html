@@ -1,3 +1,41 @@
+<!--<!DOCTYPE html>-->
+<!--<html lang="en">-->
+<!--<head>-->
+<!--    <meta charset="UTF-8">-->
+<!--    <title>Welcome File watcher!!</title>-->
+<!--    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>-->
+<!--    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>-->
+<!--    <script>-->
+<!--        let socket = new SockJS("/logs");-->
+<!--        let client = Stomp.over(socket);-->
+
+<!--        client.connect({}, function(frame) {-->
+<!--            console.log("Connected !!");-->
+
+<!--            client.subscribe("/topic/log", function (msg) {-->
+<!--                try {-->
+<!--                    const lines = JSON.parse(msg.body);-->
+<!--                    (Array.isArray(lines) ? lines : [lines]).forEach(print);-->
+<!--                } catch (e) {-->
+<!--                    console.error("Invalid message", msg.body, e);-->
+<!--                }-->
+<!--            });-->
+<!--        });-->
+
+<!--        function print(message) {-->
+<!--            let log = document.getElementById("logs");-->
+<!--            let newLogs = document.createElement("p");-->
+<!--            newLogs.appendChild(document.createTextNode(message));-->
+<!--            log.appendChild(newLogs);-->
+<!--        }-->
+<!--    </script>-->
+<!--</head>-->
+<!--<body>-->
+<!--<h1>Welcome! File Watcher Service</h1>-->
+<!--<div id="logs"></div>-->
+<!--</body>-->
+<!--</html>-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,8 +52,18 @@
 
             client.subscribe("/topic/log", function (msg) {
                 try {
-                    const lines = JSON.parse(msg.body);
-                    (Array.isArray(lines) ? lines : [lines]).forEach(print);
+                    // Handle both string and JSON messages
+                    try {
+                        const parsed = JSON.parse(msg.body);
+                        if (Array.isArray(parsed)) {
+                            parsed.forEach(print);
+                        } else {
+                            print(parsed);
+                        }
+                    } catch (parseError) {
+                        // Handle plain string message
+                        print(msg.body);
+                    }
                 } catch (e) {
                     console.error("Invalid message", msg.body, e);
                 }
@@ -31,7 +79,7 @@
     </script>
 </head>
 <body>
-<h1>Welcome! File Watcher Service</h1>
+<h1>File Watcher Service</h1>
 <div id="logs"></div>
 </body>
 </html>

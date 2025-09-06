@@ -1,82 +1,74 @@
 //package com.example.logs.service;
-//
-//import com.fasterxml.jackson.databind.ObjectMapper;
 //import org.springframework.beans.factory.annotation.Autowired;
 //import org.springframework.messaging.simp.SimpMessagingTemplate;
 //import org.springframework.scheduling.annotation.Scheduled;
-//import org.springframework.stereotype.Service;
-//
+//import org.springframework.stereotype.Component;
 //import java.io.IOException;
-//import java.nio.ByteBuffer;
-//import java.nio.channels.FileChannel;
-//import java.nio.charset.StandardCharsets;
-//import java.nio.file.*;
+//import java.io.RandomAccessFile;
+//import java.nio.file.Path;
+//import java.nio.file.Paths;
 //import java.util.ArrayList;
 //import java.util.List;
-//import java.util.Map;
 //
-//@Service
+//@Component
 //public class FileWatcherService {
-//
-//    private static final Path LOG_FILE = Paths.get("C:/Users/z004fy4n/Desktop/PP/BS/logs/logs/data.txt");
-//    private static final String DESTINATION = "/topic/log";
-//    private long filePointer = 0L; // Tracks the byte position
+//    private static final Path FILE_NAME = Paths.get("C:/Users/z004fy4n/Desktop/PP/BS/logs/logs/data.txt");
+//    public static final String DESTINATION = "/topic/log";
+//    private long offset;
+//    private final RandomAccessFile randomAccessFile;
+//    private boolean firstRun = true;
 //
 //    @Autowired
 //    private SimpMessagingTemplate messagingTemplate;
 //
-//    private final ObjectMapper mapper = new ObjectMapper();
+//    public FileWatcherService() throws IOException {
+//        randomAccessFile = new RandomAccessFile(String.valueOf(FILE_NAME), "r");
+//        offset = randomAccessFile.length();
+//    }
 //
-//    @Scheduled(fixedDelay = 1000, initialDelay = 500)
+//    @Scheduled(fixedDelay = 100, initialDelay = 5000)
 //    public void sendUpdates() throws IOException {
-//        if (!Files.exists(LOG_FILE)) {
-//            return;
+//        long fileLength = randomAccessFile.length();
+//
+//        if (fileLength < offset) offset = 0;
+//        if (fileLength <= offset && !firstRun) return;
+//
+//        seekToLast10Lines(firstRun ? 0 : offset, fileLength);
+//
+//        List<String> lines = new ArrayList<>();
+//        String line;
+//        while ((line = randomAccessFile.readLine()) != null && lines.size() < 10) {
+//            if (!line.isEmpty()) lines.add(line);
 //        }
 //
-//        try (FileChannel channel = FileChannel.open(LOG_FILE, StandardOpenOption.READ)) {
-//            long fileSize = channel.size();
-//
-//            if (fileSize < filePointer) {
-//                filePointer = 0; // file reset or truncated
-//            }
-//
-//            channel.position(filePointer);
-//
-//            ByteBuffer buffer = ByteBuffer.allocate((int) (fileSize - filePointer));
-//            int bytesRead = channel.read(buffer);
-//
-//            if (bytesRead > 0) {
-//                buffer.flip();
-//                String newData = StandardCharsets.UTF_8.decode(buffer).toString();
-//                String[] lines = newData.split("\\r?\\n");
-//
-//                // Prepare list of maps for JSON serialization
-//                List<Map<String, String>> batch = new ArrayList<>();
-//                for (String line : lines) {
-//                    if (!line.isEmpty()) {
-//                        batch.add(Map.of("content", line));
-//                    }
-//                }
-//
-//                if (!batch.isEmpty()) {
-//                    // Convert list to JSON array string
-//                    String payload = mapper.writeValueAsString(batch);
-//                    messagingTemplate.convertAndSend(DESTINATION, payload);
-//                }
-//
-//                filePointer = fileSize;
-//            }
+//        if (!lines.isEmpty()) {
+//            messagingTemplate.convertAndSend(DESTINATION, lines);
+//            offset = randomAccessFile.getFilePointer();
+//            firstRun = false;
 //        }
+//    }
+//
+//    private void seekToLast10Lines(long start, long end) throws IOException {
+//        if (end <= start) return;
+//
+//        long pos = end - 1;
+//        int lines = 0;
+//
+//        while (pos >= start && lines < 10) {
+//            randomAccessFile.seek(pos--);
+//            if (randomAccessFile.read() == '\n') lines++;
+//        }
+//
+//        randomAccessFile.seek(pos < start ? start : pos + 2);
 //    }
 //}
 
-package com.example.logs.service;
 
+package com.example.logs.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
@@ -86,94 +78,57 @@ import java.util.List;
 
 @Component
 public class FileWatcherService {
-    private static final Path FILE_NAME = Paths.get("");
-    private final static String READ_MODE = "r";
+    private static final Path FILE_NAME = Paths.get("C:/Users/z004fy4n/Desktop/PP/BS/logs/logs/data.txt");
     public static final String DESTINATION = "/topic/log";
     private long offset;
-
     private final RandomAccessFile randomAccessFile;
+    private boolean firstRun = true;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     public FileWatcherService() throws IOException {
-        randomAccessFile = new RandomAccessFile(String.valueOf(FILE_NAME), READ_MODE);
-
-        offset = initialOffset();
+        randomAccessFile = new RandomAccessFile(String.valueOf(FILE_NAME), "r");
+        offset = randomAccessFile.length();
     }
 
-//    @Scheduled(fixedDelay = 100, initialDelay = 5000)
-//    public void sendUpdates() throws IOException {
-//        long fileLength = randomAccessFile.length();
-//        long pointer = fileLength - 1;
-//        int lines = 0;
-//        while (pointer >= 0 && lines <= 10) {
-//            randomAccessFile.seek(pointer--);
-//            if (randomAccessFile.readByte() == '\n') lines++;
-//        }
-//
-//        while (randomAccessFile.getFilePointer() < fileLength) {
-//            String latestFileData = randomAccessFile.readLine();
-//            String payload = "{\"content\":\"" + latestFileData + "\"}";
-//
-//            messagingTemplate
-//                    .convertAndSend(DESTINATION, payload);
-//        }
-//
-//        offset = fileLength;
-//    }
-@Scheduled(fixedDelay = 100, initialDelay = 5000)
-public void sendUpdates() throws IOException {
-    long fileLength = randomAccessFile.length();
+    @Scheduled(fixedDelay = 100, initialDelay = 5000)
+    public void sendUpdates() throws IOException {
+        long fileLength = randomAccessFile.length();
 
-    // File was truncated or recreated
-    if (fileLength < offset) {
-        offset = 0;
-    }
+        if (fileLength < offset) offset = 0;
+        if (fileLength <= offset && !firstRun) return;
 
-    // Go to last position
-    randomAccessFile.seek(offset);
+        seekToLast10Lines(firstRun ? 0 : offset, fileLength);
 
-    List<String> newLines = new ArrayList<>();
-    String line;
-
-    while ((line = randomAccessFile.readLine()) != null) {
-        if (!line.isEmpty()) {
-            newLines.add(line);
+        List<String> lines = new ArrayList<>();
+        String line;
+        while ((line = randomAccessFile.readLine()) != null && lines.size() < 10) {
+            if (!line.isEmpty()) {
+                lines.add(line);
+            }
         }
-    }
 
-    if (!newLines.isEmpty()) {
-        // Send only the last 10 lines
-        messagingTemplate.convertAndSend(
-                DESTINATION,
-                newLines.subList(Math.max(0, newLines.size() - 10), newLines.size())
-        );
+        // Send each line individually
+        for (String logLine : lines) {
+            messagingTemplate.convertAndSend(DESTINATION, logLine);
+        }
 
-        // Update offset
         offset = randomAccessFile.getFilePointer();
-    }
-}
-
-
-
-    private String escapeJson(String text) {
-        return text.replace("\"", "\\\"").replace("\n", "\\n");
+        firstRun = false;
     }
 
+    private void seekToLast10Lines(long start, long end) throws IOException {
+        if (end <= start) return;
 
+        long pos = end - 1;
+        int lines = 0;
 
-    private long initialOffset() throws IOException {
-        int lineCount = 0;
-
-        while (randomAccessFile.readLine() != null) {
-            lineCount++;
+        while (pos >= start && lines < 10) {
+            randomAccessFile.seek(pos--);
+            if (randomAccessFile.read() == '\n') lines++;
         }
 
-        if(lineCount > 10) {
-            offset = lineCount - 10;
-        }
-
-        return offset;
+        randomAccessFile.seek(pos < start ? start : pos + 2);
     }
 }
